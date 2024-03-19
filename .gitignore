@@ -1,0 +1,16 @@
+*.exe
+*.dll
+x64/*
+.vs/*
+*.user
+*.filters
+*.obj
+*.idb
+*.pdb
+*.enc
+*.log
+*.ilk
+*.recipe
+*.tlog
+*lastbuildstate
+SimplePlot/x64/*
