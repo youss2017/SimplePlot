@@ -229,10 +229,11 @@ void win32_render()
 			glClearColor(.89f, .89f, .89f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT);
 			glLineWidth(2.5f);
+			glPointSize(5.0f);
 			glUniform3f(lineColorId, 0.12f, 0.2f, 0.9f);
 			glUniform2f(x_rangeId, (float)curve.x_range.first, (float)curve.x_range.second);
 			glUniform2f(y_rangeId, (float)curve.y_range.first, (float)curve.y_range.second);
-			glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)curve.pointCount);
+			glDrawArrays(GL_POINTS, 0, (GLsizei)curve.pointCount);
 		}
 		internal::gl_buffer::unbind();
 		internal::fbo_info::unbind();
