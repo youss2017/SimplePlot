@@ -39,12 +39,59 @@ int main() {
 
 	splot::plot(x, y, splot::PlotMode::Line);
 	splot::yrange(-2., 2);
+	x.clear();
+	y.clear();
+
+	for (size_t i = 0; i < 100; i++) {
+		double t = i / 50.0;
+		x.push_back(t);
+		double f = cos(2.0 * 3.14 * 1.0 * t);
+		y.push_back(f);
+		//for (size_t n = 1; n <= an.size(); n++) {
+		//	f += an[n - 1] * cos(2.0 * 3.14 * n * omega * t);
+		//}
+		//f = f * (cos(2.0f * 3.14 * t) + cos(2.0f * 3.14 * 2.0 * t) + cos(2.0f * 3.14 * 3.0 * t)) * 1/3.0;
+		//y.push_back(cos((2.0 * 3.14 * 3 * t) + 0.1*cos(2.0 * 3.14 * 8 * t) + 0.1*cos(2.0 * 3.14 * 22.0 * t)) + 0.55*cos(2.0*3.14*10.0*t + 3.14/3));
+	}
+
 	splot::plot(x, y, splot::PlotMode::Line);
 	splot::yrange(-2., 2);
+	x.clear();
+	y.clear();
+
+	for (int i = -100; i < 100; i++) {
+		double t = i / 100.0;
+		x.push_back(t);
+		double f = t * t;
+		y.push_back(f);
+		//for (size_t n = 1; n <= an.size(); n++) {
+		//	f += an[n - 1] * cos(2.0 * 3.14 * n * omega * t);
+		//}
+		//f = f * (cos(2.0f * 3.14 * t) + cos(2.0f * 3.14 * 2.0 * t) + cos(2.0f * 3.14 * 3.0 * t)) * 1/3.0;
+		//y.push_back(cos((2.0 * 3.14 * 3 * t) + 0.1*cos(2.0 * 3.14 * 8 * t) + 0.1*cos(2.0 * 3.14 * 22.0 * t)) + 0.55*cos(2.0*3.14*10.0*t + 3.14/3));
+	}
+
 	splot::plot(x, y, splot::PlotMode::Line);
-	splot::yrange(-2., 2);
+	x.clear();
+	y.clear();
+
+	for (int i = -100; i < 100; i++) {
+		double t = (i) / 100.0;
+		x.push_back(t);
+		float alpha = 2.0 * 3.14 * 1.0 * t;
+		double f = sin(alpha) / alpha;
+		if (f != f) f = 1.0f;
+		y.push_back(f);
+		//for (size_t n = 1; n <= an.size(); n++) {
+		//	f += an[n - 1] * cos(2.0 * 3.14 * n * omega * t);
+		//}
+		//f = f * (cos(2.0f * 3.14 * t) + cos(2.0f * 3.14 * 2.0 * t) + cos(2.0f * 3.14 * 3.0 * t)) * 1/3.0;
+		//y.push_back(cos((2.0 * 3.14 * 3 * t) + 0.1*cos(2.0 * 3.14 * 8 * t) + 0.1*cos(2.0 * 3.14 * 22.0 * t)) + 0.55*cos(2.0*3.14*10.0*t + 3.14/3));
+	}
+
 	splot::plot(x, y, splot::PlotMode::Line);
-	splot::yrange(-2., 2);
+	x.clear();
+	y.clear();
 
 	splot::update(true);
 

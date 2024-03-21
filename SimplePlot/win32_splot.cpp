@@ -1,5 +1,6 @@
 #include "splot.hpp"
 #include "win32_def.hpp"
+#include <Objbase.h>
 #include <algorithm>
 
 using namespace splot;
@@ -14,6 +15,7 @@ void compute_curve_placement(figure_s* figure);
 figure_s* splot::create_figure(const std::string& title, size_t width, size_t height)
 {
 	if (!g_CurrentFigure) {
+		CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 		// Register class
 		WNDCLASSEXA wc = {};
 		wc.cbSize = sizeof(WNDCLASSEXA);
@@ -146,8 +148,8 @@ void splot::plot(const vector<double>& x, const vector<double>& y, PlotMode mode
 		curve.x_range = { x_min, x_max };
 		curve.y_range = { y_min, y_max };
 		curve.pointCount = x.size();
-		curve.vaoId = splot::internal::glsl_load_data_into_vao_buffer(x, y, curve.x_range, curve.y_range);
-		curve.renderTarget = splot::internal::gl_create_framebuffer(800, 600);
+		curve.verticesData = splot::internal::glsl_load_points_into_vao_buffer(x, y, curve.x_range, curve.y_range);
+		curve.renderTarget = splot::internal::fbo_info::gl_create_framebuffer(800, 600);
 		g_CurrentFigure->curves.push_back(curve);
 	}
 	else {
@@ -206,11 +208,7 @@ void win32_render()
 
 		RECT rect;
 		GetClientRect(figure->hWnd, &rect);
-		//wglMakeCurrent(figure->hDc, figure->hGLRC);
-
-		glViewport(0, 0, rect.right, rect.bottom);
-		glClearColor(0.04f, 0.05f, 0.08f, 0);
-		glClear(GL_COLOR_BUFFER_BIT);
+		wglMakeCurrent(figure->hDc, figure->hGLRC);
 
 		glUseProgram(figure->PlotProgramId);
 		GLint lineColorId = glGetUniformLocation(figure->PlotProgramId, "LineColor");
@@ -219,33 +217,38 @@ void win32_render()
 
 		GLint curveTextureId = glGetUniformLocation(figure->FigureProgramId, "CurveTexture");
 
+			srand(0xea);
 		for (auto& curve : figure->curves) {
 			const auto& xv = curve.x_values;
 			const auto& yv = curve.y_values;
 			const auto x_range = curve.x_range;
 			const auto y_range = curve.y_range;
 
-			glDeleteVertexArrays(1, &curve.vaoId);
-			curve.vaoId = splot::internal::glsl_load_data_into_vao_buffer(xv, yv, curve.x_range, curve.y_range);
-
-			//glBindFramebuffer(GL_FRAMEBUFFER, curve.renderTarget.fboId);
-			glBindVertexArray(curve.vaoId);
-			glUniform3f(lineColorId, 0.12, 0.2, 0.9);
-			glUniform2f(x_rangeId, curve.x_range.first, curve.x_range.second);
-			glUniform2f(y_rangeId, curve.y_range.first, curve.y_range.second);
-			glDrawArrays(GL_LINE_STRIP, 0, curve.pointCount);
+			curve.renderTarget->bind();
+			curve.verticesData->bind();
+			glClearColor(.89f, .89f, .89f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT);
+			glLineWidth(2.5f);
+			glUniform3f(lineColorId, 0.12f, 0.2f, 0.9f);
+			glUniform2f(x_rangeId, (float)curve.x_range.first, (float)curve.x_range.second);
+			glUniform2f(y_rangeId, (float)curve.y_range.first, (float)curve.y_range.second);
+			glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)curve.pointCount);
 		}
-
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glUseProgram(figure->FigureProgramId);
+		internal::gl_buffer::unbind();
+		internal::fbo_info::unbind();
 
 		compute_curve_placement(figure);
-		glBindVertexArray(figure->figureVaoId);
+		figure->figureCurve->bind();
+		glUseProgram(figure->FigureProgramId);
+
+		glViewport(0, 0, rect.right, rect.bottom);
+		glClearColor(0.57f, 0.37f, 0.33f, 0);
+		glClear(GL_COLOR_BUFFER_BIT);
 
 		size_t curveI = 0;
 		for (auto& curve : figure->curves) {
 			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, curve.renderTarget.textureId);
+			glBindTexture(GL_TEXTURE_2D, curve.renderTarget->textureId);
 			glUniform1i(curveTextureId, 0);
 			glDrawArrays(GL_TRIANGLES, curveI * 6, 6);
 			curveI++;
@@ -257,17 +260,17 @@ void win32_render()
 	}
 }
 
-float normalize_range(float v, float v_min, float v_max) {
-	float normalized_v = 2.0 * ((v - v_min) / (v_max - v_min)) - 1.0;
-	return normalized_v;
-};
+static float map_range(float value, float from_min, float from_max, float to_min, float to_max) {
+	// Map value from the range [from_min, from_max] to the range [to_min, to_max]
+	return (value - from_min) * (to_max - to_min) / (from_max - from_min) + to_min;
+}
 
 void compute_curve_placement(figure_s* figure)
 {
 	const float edgePadding = 0.03f;
 	const float padding = 0.1f;
-	float columnCount = figure->subplot_column;
-	float rowCount = figure->subplot_rows;
+	float columnCount = (float)figure->subplot_column;
+	float rowCount = (float)figure->subplot_rows;
 	float curveWidth = (1.0f - (edgePadding + padding)) / columnCount;
 	float curveHeight = (1.0f - (edgePadding + padding)) / rowCount;
 
@@ -277,13 +280,19 @@ void compute_curve_placement(figure_s* figure)
 	};
 
 	v2 quad[] = {
+		{0.0f, 0.0f, 0.0f, 0.0f},
+		{0.0f, 1.0f, 0.0f, 1.0f},
 		{1.0f, 1.0f, 1.0f, 1.0f},
-		{1.0f, 0.0f, 1.0f, 0.0f},
 		{0.0f, 0.0f, 0.0f, 0.0f},
 		{1.0f, 1.0f, 1.0f, 1.0f},
-		{0.0f, 0.0f, 0.0f, 0.0f},
-		{0.0f, 1.0f, 0.0f, 1.0f}
+		{1.0f, 0.0f, 1.0f, 0.0f}
 	};
+
+	if (!figure->figureCurve) {
+		figure->figureCurve = internal::gl_buffer::create_buffer();
+		figure->figureCurve->enable_attrib_pointer_f32(0, 2, sizeof(v2));
+		figure->figureCurve->enable_attrib_pointer_f32(1, 2, sizeof(v2));
+	}
 
 	vector<v2> vertices;
 
@@ -295,35 +304,28 @@ void compute_curve_placement(figure_s* figure)
 			const float columnGap = padding / columnCount;
 			const float rowGap = padding / rowCount;
 			v2 corner_position = {
-				(edgePadding / 2.0f) + (columnGap * c),
-				(edgePadding / 2.0f) + (rowGap * r),
+				(edgePadding / 2.0f) + (columnGap * c) + (curveWidth * c),
+				(edgePadding / 2.0f) + (rowGap * r) + (curveHeight * r),
 			};
 			
 			v2 origin_position = {
-				corner_position.x + curveWidth / 2.0f,
-				corner_position.y + curveHeight / 2.0f,
+				corner_position.x ,
+				corner_position.y ,
 			};
 
 			v2 transformed_quad[6] = {};
+			memcpy(transformed_quad, quad, sizeof(quad));
 
 			for (size_t i = 0; i < 6; i++) {
 				transformed_quad[i].x *= curveWidth;
 				transformed_quad[i].y *= curveHeight;
 				transformed_quad[i].x += origin_position.x;
 				transformed_quad[i].y += origin_position.y;
-				// convert from [0, 1] to [-1, 1]
-				transformed_quad[i].x = normalize_range(origin_position.x, 0.0f, 1.0f);
-				transformed_quad[i].y = normalize_range(origin_position.y, 0.0f, 1.0f);
-				transformed_quad[i].u = quad[i].u;
-				transformed_quad[i].v = quad[i].v;
 				vertices.push_back(transformed_quad[i]);
 			}
 		}
 	}
 
-	glGenVertexArrays(1, &figure->figureVaoId);
-	glBindVertexArray(figure->figureVaoId);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(v2) * vertices.size(), vertices.data(), GL_DYNAMIC_DRAW);
-	glBindVertexArray(0);
+	figure->figureCurve->write(vertices.data(), vertices.size() * sizeof(v2));
 
 }

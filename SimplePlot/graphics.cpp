@@ -64,19 +64,14 @@ GLuint splot::internal::glsl_load_program(const string& vsCode, const string& fs
 
 
 
-GLuint splot::internal::glsl_load_data_into_vao_buffer(const vector<double>& x, const vector<double>& y,
+shared_ptr<splot::internal::gl_buffer> splot::internal::glsl_load_points_into_vao_buffer(const vector<double>& x, const vector<double>& y,
 	pair<double, double> x_range, pair<double, double> y_range)
 {
 	if (x.size() != y.size() || x.size() == 0) {
 		throw exception("vector(x) and vector(y) must have same point count and must be greater than 0");
-		return 0;
 	}
 
-	GLuint vaoId, vboId;
-	glGenVertexArrays(1, &vaoId);
-	glBindVertexArray(vaoId);
-	glGenBuffers(1, &vboId);
-	glBindBuffer(GL_ARRAY_BUFFER, vboId);
+	auto buffer = splot::internal::gl_buffer::create_buffer();
 
 	// move data into vec2
 	struct v2 {
@@ -90,13 +85,11 @@ GLuint splot::internal::glsl_load_data_into_vao_buffer(const vector<double>& x, 
 		points[i] = { float(x[i]), float(y[i]) };
 	}
 
-	glBufferData(GL_ARRAY_BUFFER, sizeof(v2)* points.size(), points.data(), GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(v2), (void*)0);
-
-	glBindVertexArray(0);
-	return vaoId;
+	buffer->write(points.data(), sizeof(v2)* points.size());
+	buffer->bind();
+	buffer->enable_attrib_pointer_f32(0, 2, sizeof(v2));
+	splot::internal::gl_buffer::unbind();
+	return buffer;
 }
 
 optional<string> splot::internal::read_all_text(const string& path) {
@@ -119,7 +112,7 @@ optional<string> splot::internal::read_all_text(const string& path) {
 	return ss.str();
 }
 
-splot::internal::fbo_info splot::internal::gl_create_framebuffer(uint16_t width, uint16_t height)
+shared_ptr<splot::internal::fbo_info> splot::internal::fbo_info::gl_create_framebuffer(uint16_t width, uint16_t height)
 {
 	GLuint fbo, texId;
 	glGenFramebuffers(1, &fbo);
@@ -131,5 +124,15 @@ splot::internal::fbo_info splot::internal::gl_create_framebuffer(uint16_t width,
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texId, 0);
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	return { fbo, texId };
+	shared_ptr<splot::internal::fbo_info> result = make_shared<splot::internal::fbo_info>();
+	result->fboId = fbo;
+	result->textureId = texId;
+	result->width = width;
+	result->height = height;
+	return result;
+}
+
+shared_ptr<splot::internal::gl_buffer> splot::internal::gl_buffer::create_buffer()
+{
+	return make_shared<gl_buffer>();
 }

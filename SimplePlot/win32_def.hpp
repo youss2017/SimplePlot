@@ -30,18 +30,12 @@ namespace splot {
 			pair<double, double> x_range;
 			pair<double, double> y_range;
 
-			GLuint vaoId = 0; // Contains the x,y data
-			internal::fbo_info renderTarget;
+			shared_ptr<internal::gl_buffer> verticesData;
+			shared_ptr<internal::fbo_info> renderTarget;
 
-			~curve_data() {
-				if (vaoId) {
-					// (TODO): Also delete vboId
-					glDeleteVertexArrays(1, &vaoId);
-				}
-			}
 		};
-
-		GLuint figureVaoId = 0; // Contains data for plotting curves (through quads) on the window framebuffer
+		// Contains data for plotting curves (through quads) on the window framebuffer
+		shared_ptr<internal::gl_buffer> figureCurve; 
 		vector<curve_data> curves;
 	};
 }
