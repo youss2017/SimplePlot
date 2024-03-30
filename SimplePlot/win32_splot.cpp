@@ -40,6 +40,7 @@ figure_s* splot::create_figure(const std::string& title, size_t width, size_t he
 		nullptr);
 
 	ShowWindow(fig->hWnd, SW_SHOWDEFAULT);
+	//fig->hWnd = GetConsoleWindow();
 
 	HDC dc = GetDC(fig->hWnd);
 
@@ -79,8 +80,8 @@ figure_s* splot::create_figure(const std::string& title, size_t width, size_t he
 
 	auto status = gladLoadGL();
 
-	//glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-	//glEnable(GL_LINE_SMOOTH);
+	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+	glEnable(GL_LINE_SMOOTH);
 
 	// TODO: Make the shaders as constant string in c++ header file to avoid file loading issues
 	fig->PlotProgramId = splot::internal::glsl_load_program(splot::internal::read_all_text("plotvs_shader.glsl").value(), splot::internal::read_all_text("plotfs_shader.glsl").value());
@@ -98,6 +99,8 @@ figure_s* splot::create_figure(const std::string& title, size_t width, size_t he
 	//glBindVertexArray(0);
 	//
 	//fig->figureVaoId = figVaoId;
+
+	glEnable(GL_MULTISAMPLE);
 
 	g_CurrentFigure = fig;
 
@@ -139,8 +142,8 @@ void splot::plot(const vector<double>& x, const vector<double>& y, PlotMode mode
 	if (g_CurrentFigure) {
 		figure_s::curve_data curve;
 		curve.subplot_index = g_CurrentFigure->subplot_index;
-		curve.x_values = x;
-		curve.y_values = y;
+		//curve.x_values = x;
+		//curve.y_values = y;
 		double x_min = *min_element(x.begin(), x.end());
 		double x_max = *max_element(x.begin(), x.end());
 		double y_min = *min_element(y.begin(), y.end());
@@ -158,6 +161,32 @@ void splot::plot(const vector<double>& x, const vector<double>& y, PlotMode mode
 	}
 }
 
+void splot::polarplot(const vector<double>& angle, const vector<double>& radius, PlotMode mode)
+{
+	// Do we have figure already? yes then plot to the current figure
+	// otherwise create new figure and plot to that figure
+	if (angle.size() == 0 || radius.size() == 0 || angle.size() != radius.size())
+		return;
+	if (g_CurrentFigure) {
+		vector<double> x(angle.size());
+		vector<double> y(angle.size());
+		double max_radius = 0.0;
+		for (size_t i = 0; i < x.size(); i++) {
+			x[i] = radius[i] * cos(angle[i]);
+			y[i] = radius[i] * sin(angle[i]);
+			max_radius = max(abs(radius[i]), max_radius);
+		}
+		max_radius *= 1.02;
+		plot(x, y, mode);
+		xlim(-max_radius, max_radius);
+		ylim(-max_radius, max_radius);
+	}
+	else {
+		create_figure("Figure 1", 640, 480);
+		polarplot(angle, radius, mode);
+	}
+}
+
 void splot::xlabel(const std::string& name)
 {
 }
@@ -166,7 +195,7 @@ void splot::ylabel(const std::string& name)
 {
 }
 
-void splot::xrange(double xmin, double xmax)
+void splot::xlim(double xmin, double xmax)
 {
 	if (!g_CurrentFigure) return;
 	auto& curve = g_CurrentFigure->curves;
@@ -175,7 +204,7 @@ void splot::xrange(double xmin, double xmax)
 	}
 }
 
-void splot::yrange(double ymin, double ymax)
+void splot::ylim(double ymin, double ymax)
 {
 	if (!g_CurrentFigure) return;
 	auto& curve = g_CurrentFigure->curves;
@@ -217,10 +246,10 @@ void win32_render()
 
 		GLint curveTextureId = glGetUniformLocation(figure->FigureProgramId, "CurveTexture");
 
-			srand(0xea);
+		srand(0xea);
 		for (auto& curve : figure->curves) {
-			const auto& xv = curve.x_values;
-			const auto& yv = curve.y_values;
+			//const auto& xv = curve.x_values;
+			//const auto& yv = curve.y_values;
 			const auto x_range = curve.x_range;
 			const auto y_range = curve.y_range;
 
@@ -228,7 +257,7 @@ void win32_render()
 			curve.verticesData->bind();
 			glClearColor(.89f, .89f, .89f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT);
-			glLineWidth(2.5f);
+			glLineWidth(5.0f);
 			glPointSize(5.0f);
 			glUniform3f(lineColorId, 0.12f, 0.2f, 0.9f);
 			glUniform2f(x_rangeId, (float)curve.x_range.first, (float)curve.x_range.second);
@@ -268,12 +297,12 @@ static float map_range(float value, float from_min, float from_max, float to_min
 
 void compute_curve_placement(figure_s* figure)
 {
-	const float edgePadding = 0.03f;
 	const float padding = 0.1f;
+	const float edgePadding = 0.05f;
 	float columnCount = (float)figure->subplot_column;
 	float rowCount = (float)figure->subplot_rows;
-	float curveWidth = (1.0f - (edgePadding + padding)) / columnCount;
-	float curveHeight = (1.0f - (edgePadding + padding)) / rowCount;
+	float curveWidth = (1.0f - (padding + edgePadding * (figure->subplot_column - 1))) / columnCount;
+	float curveHeight = (1.0f - (padding + edgePadding * (figure->subplot_rows - 1))) / rowCount;
 
 	struct v2 {
 		float x, y;
@@ -298,17 +327,17 @@ void compute_curve_placement(figure_s* figure)
 	vector<v2> vertices;
 
 	for (int c = 0; c < figure->subplot_column; c++) {
-		for (int r = 0; r < figure->subplot_rows; r++) {
+		for (int r = figure->subplot_rows - 1; r >= 0; r--) {
 			if (c * r >= figure->curves.size()) {
-				break;
+				continue;
 			}
 			const float columnGap = padding / columnCount;
 			const float rowGap = padding / rowCount;
 			v2 corner_position = {
-				(edgePadding / 2.0f) + (columnGap * c) + (curveWidth * c),
-				(edgePadding / 2.0f) + (rowGap * r) + (curveHeight * r),
+				(edgePadding)+(columnGap * c) + (curveWidth * c),
+				(edgePadding)+(rowGap * r) + (curveHeight * r),
 			};
-			
+
 			v2 origin_position = {
 				corner_position.x ,
 				corner_position.y ,

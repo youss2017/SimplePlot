@@ -26,6 +26,7 @@
   <ItemGroup>
     <ClCompile Include="..\glad\src\glad.c" />
     <ClCompile Include="graphics.cpp" />
+    <ClCompile Include="splot.cpp" />
     <ClCompile Include="test.cpp" />
     <ClCompile Include="win32_splot.cpp" />
   </ItemGroup>
