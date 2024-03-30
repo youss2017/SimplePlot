@@ -82,6 +82,9 @@ figure_s* splot::create_figure(const std::string& title, size_t width, size_t he
 	//glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 	//glEnable(GL_LINE_SMOOTH);
 
+	glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
+	glEnable(GL_POINT_SMOOTH_HINT);
+
 	// TODO: Make the shaders as constant string in c++ header file to avoid file loading issues
 	fig->PlotProgramId = splot::internal::glsl_load_program(splot::internal::read_all_text("plotvs_shader.glsl").value(), splot::internal::read_all_text("plotfs_shader.glsl").value());
 	fig->FigureProgramId = splot::internal::glsl_load_program(splot::internal::read_all_text("figvs_shader.glsl").value(), splot::internal::read_all_text("figfs_shader.glsl").value());

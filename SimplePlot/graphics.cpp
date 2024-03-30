@@ -1,6 +1,7 @@
 #include "graphics.hpp"
 #include <fstream>
 #include <sstream>
+#include "stb_truetype.h"
 using namespace std;
 
 GLuint splot::internal::glsl_load_program(const string& vsCode, const string& fsCode)
@@ -110,6 +111,10 @@ optional<string> splot::internal::read_all_text(const string& path) {
 
 	// Return the contents of the stringstream as an std::string
 	return ss.str();
+}
+
+void splot::internal::font_tests()
+{
 }
 
 shared_ptr<splot::internal::fbo_info> splot::internal::fbo_info::gl_create_framebuffer(uint16_t width, uint16_t height)

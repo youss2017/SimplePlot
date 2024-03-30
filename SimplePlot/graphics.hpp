@@ -101,6 +101,8 @@ namespace splot {
 
 		optional<string> read_all_text(const string& path);
 
+		void font_tests();
+
 	}
 
 }
