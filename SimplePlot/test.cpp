@@ -1,6 +1,8 @@
 #include <iostream>
 #include "splot.hpp"
 #include <numbers>
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
 
 using namespace std;
 
