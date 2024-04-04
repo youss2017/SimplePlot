@@ -156,6 +156,7 @@ void splot::plot(const vector<double>& x, const vector<double>& y, PlotMode mode
 		curve.pointCount = x.size();
 		curve.verticesData = splot::internal::glsl_load_points_into_vao_buffer(x, y, curve.x_range, curve.y_range);
 		curve.renderTarget = splot::internal::fbo_info::gl_create_framebuffer(800, 600);
+		curve.plotMode = mode;
 		g_CurrentFigure->curves.push_back(curve);
 	}
 	else {
@@ -265,7 +266,7 @@ void win32_render()
 			glUniform3f(lineColorId, 0.12f, 0.2f, 0.9f);
 			glUniform2f(x_rangeId, (float)curve.x_range.first, (float)curve.x_range.second);
 			glUniform2f(y_rangeId, (float)curve.y_range.first, (float)curve.y_range.second);
-			glDrawArrays(GL_POINTS, 0, (GLsizei)curve.pointCount);
+			glDrawArrays(curve.plotMode == PlotMode::Line ? GL_LINE_STRIP : GL_POINTS, 0, (GLsizei)curve.pointCount);
 		}
 		internal::gl_buffer::unbind();
 		internal::fbo_info::unbind();

@@ -26,6 +26,15 @@ namespace splot {
 	// Function to create a matrix of zeros
 	std::vector<std::vector<double>> zeros(size_t rows, size_t cols);
 
+	std::vector<std::vector<double>> invert_matrix(const std::vector<std::vector<double>>& matrix);
+
+	std::vector<double> matrix_vector_multiplication(const vector<vector<double>>& matrix, const vector<double>& row);
+
+	void print_matrix(const std::vector<std::vector<double>>& matrix, const std::string& name = "");
+
+	void export_csv(const std::string& filePath, const vector<double>& x, const vector<double>& y, const std::string& xaxisName = "x", const std::string& yaxisName = "y", int decimalPlaces = 5);
+	void export_csv(const std::string& filePath, const vector<vector<double>>& matrix, int decimalPlaces = 5);
+
 	double maxv(const std::vector<double>& vec);
 	double minv(const std::vector<double>& vec);
 

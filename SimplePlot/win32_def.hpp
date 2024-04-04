@@ -32,7 +32,8 @@ namespace splot {
 
 			shared_ptr<internal::gl_buffer> verticesData;
 			shared_ptr<internal::fbo_info> renderTarget;
-
+			
+			PlotMode plotMode = PlotMode::Line;
 		};
 		// Contains data for plotting curves (through quads) on the window framebuffer
 		shared_ptr<internal::gl_buffer> figureCurve; 
