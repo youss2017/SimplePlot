@@ -60,7 +60,7 @@ int main() {
 		y.push_back(p.y);
 	}
 
-	splot::create_figure("Schottky Diode I-V Curve", 1280, 720);
+	splot::create_figure("Simple Plot Example", 1280, 720);
 
 	// x(t) = 47cos(2*pi*200t); Fs = 2 kHz
 	// 1 cycle of x(t) or Fs/fc
@@ -94,13 +94,13 @@ int main() {
 		dftMag[i] = sqrt(dft[i].real() * dft[i].real() + dft[i].imag() * dft[i].imag()) * (2.0 / N);
 	}
 
-	splot::subplot(2, 1, 1);
+	splot::subplot(2, 2, 1);
 	splot::plot(xt, yt, splot::PlotMode::Line);
 	splot::ylabel("Amplitude");
 	splot::xlabel("Sample");
 	splot::title("x(t) = 47cos(2pi200t)");
 	splot::color(1.0, 0.0, 0.0);
-	splot::subplot(2, 1, 2);
+	splot::subplot(2, 2, 2);
 	splot::plot(xt, dftMag, splot::PlotMode::Line);
 	splot::ylabel("Amplitude");
 	splot::xlabel("Sample");
@@ -108,6 +108,33 @@ int main() {
 	splot::color(0.55, 0.22, 0.35);
 	auto maggg = splot::maxv(dftMag);
 	splot::ylim(-0.5, maggg + 0.8);
+
+	vector<double> v, current;
+	for (int i = 0; i < 32; i++) {
+		double volt = .8 * ((i+1) / 32.0);
+		double cur = 25e-9 * exp(volt / 25.6e-3);
+		v.push_back(volt);
+		current.push_back(cur);
+	}
+
+	splot::subplot(2, 2, 3);
+	splot::plot(v, current, splot::PlotMode::Line);
+	splot::xlabel("Voltage (V)");
+	splot::ylabel("Current (A)");
+	splot::title("Diode I-V Curve");
+
+	vector<double> a, b;
+	for (int i = 0; i < 300; i++) {
+		double t = ((i + 1) / 300.0);
+		a.push_back(t);
+		b.push_back(cos(2.0 * 3.14 * 6 * t));
+	}
+
+	splot::subplot(2, 2, 4);
+	splot::plot(a, b, splot::PlotMode::Point);
+	splot::xlabel("t");
+	splot::ylabel("g(t)");
+	splot::title("Cosine Curve");
 
 	splot::update(true);
 

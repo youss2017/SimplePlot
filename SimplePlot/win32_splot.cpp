@@ -392,6 +392,12 @@ void compute_curve_placement(figure_s* figure)
 			if (c * r >= figure->curves.size()) {
 				continue;
 			}
+
+			if (curveCounter >= figure->curves.size()) {
+				// no more curves available, we can exit now.
+				break;
+			}
+
 			const float columnGap = padding / columnCount;
 			const float rowGap = padding / rowCount;
 			v2 corner_position = {
