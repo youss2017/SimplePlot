@@ -4,77 +4,111 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 #include <iomanip>
+#include <complex>
+#pragma comment(lib, "freetype.lib")
 
 using namespace std;
 
 constexpr double PI = 3.141592654;
 
+struct point {
+	double x;
+	double y;
+};
+
 int main() {
 	cout << setprecision(5);
 
-	// Compute Current distrbution on linear wire
-	double a = 0.1; // radius, meters
-	double length = 1000; // 1 meter
+	std::vector<point> points = {
+				{-25,	-0.053},
+				{-24,	-0.018},
+				{-23,	-0.013 },
+				{-22,	-0.011},
+				{-21,	-0.011},
+				{-20,	-0.009},
+				{-19,	-0.008},
+				{-18,	-0.007},
+				{-17,	-0.007},
+				{-16,	-0.006},
+				{-15,	-0.006},
+				{-14,	-0.004},
+				{-13,	-0.004},
+				{-12,	-0.004},
+				{-11,	-0.003},
+				{-10,	-0.003},
+				{-9,	-0.003},
+				{-8,	-0.002},
+				{-7,	-0.002},
+				{-6,	-0.001},
+				{-5,	-0.001},
+				{-4,	-0.001},
+				{-3,	-0.001},
+				{-2,	0	  },
+				{-1,	0	  },
+				{0,	0},
+				{1,	0.004},
+				{2,	0.012},
+				{3,	0.019},
+				{4,	0.035},
+				{5,	0.078},
+	};
 
-	const int segmentCount = 350;
-	const double delta = length / (double)segmentCount;
+	vector<double> x;
+	vector<double> y;
+	for (auto& p : points) {
+		x.push_back(p.x);
+		y.push_back(p.y);
+	}
 
-	constexpr double e0 = 8.854187812810e-12;
+	splot::create_figure("Schottky Diode I-V Curve", 1280, 720);
 
-	vector<vector<double>> matrix;
+	// x(t) = 47cos(2*pi*200t); Fs = 2 kHz
+	// 1 cycle of x(t) or Fs/fc
+	vector<double> xt;
+	vector<double> yt;
+	const double Fs = 2000;
+	const double fc = 440;
+	const int zeroCount = 200;
 
-	for (int i = 0; i < segmentCount; i++) {
-		double ym = (i * delta) + (delta / 2.0);
+	for (int n = 0; n < Fs / fc; n++) {
+		xt.push_back(n);
+		yt.push_back(47.0 * cos(2.0 * 3.14 * fc * n / Fs));
+	}
 
-		vector<double> row;
-		for (int j = 0; j < segmentCount; j++) {
-			double integrationStart = j * delta;
-			double integrationEnd = (j + 1) * delta;
-			double step = delta / 10000.0;
-			double sum = 0.0;
-			for (double t = integrationStart; t < integrationEnd; t += step) {
-				double yprime = t;
-				double ym_minus_yprime = ym - yprime;
-				double R = sqrt((ym_minus_yprime * ym_minus_yprime) + a * a);
-				double invR = delta / R;
-				sum += invR * (1.0/10000.0);
-			}
-			row.push_back(sum);
+	for (int i = 0; i < zeroCount; i++) {
+		xt.push_back(*(--xt.end()) + 1);
+		yt.push_back(0);
+	}
+
+	const double N = xt.size();
+	vector<complex<double>> dft((int)N);
+	vector<double> dftMag((int)N);
+
+	for (int k = 0; k < N; k++) {
+		for (int n = 0; n < N; n++) {
+			dft[k] += yt[n] * exp(complex<double>(0, -1) * double(2.0 * 3.14 * n * k / N));
 		}
-		matrix.push_back(row);
 	}
 
-	//printMatrix("Z[mn]", matrix);
-
-	auto zmn_inverse = splot::invert_matrix(matrix);
-
-	//printMatrix("Z^-1[mn]", zmn_inverse);
-
-	auto Vmn = splot::zeros(zmn_inverse.size());
-	for (int i = 0; i < matrix.size(); i++) {
-		Vmn[i] = 1e3 * 4.0 * PI * e0; // kiloVolt source
+	for (int i = 0; i < N; i++) {
+		dftMag[i] = sqrt(dft[i].real() * dft[i].real() + dft[i].imag() * dft[i].imag()) * (2.0 / N);
 	}
 
-	//vector<double> data = { 0.8719,
-	//0.8019,
-	//0.7905,
-	//0.8020,
-	//0.8732 };
+	splot::subplot(2, 1, 1);
+	splot::plot(xt, yt, splot::PlotMode::Line);
+	splot::ylabel("Amplitude");
+	splot::xlabel("Sample");
+	splot::title("x(t) = 47cos(2pi200t)");
+	splot::color(1.0, 0.0, 0.0);
+	splot::subplot(2, 1, 2);
+	splot::plot(xt, dftMag, splot::PlotMode::Line);
+	splot::ylabel("Amplitude");
+	splot::xlabel("Sample");
+	splot::title("DFT{x(t)}");
+	splot::color(0.55, 0.22, 0.35);
+	auto maggg = splot::maxv(dftMag);
+	splot::ylim(-0.5, maggg + 0.8);
 
-	auto data = splot::matrix_vector_multiplication(zmn_inverse, Vmn);
-
-	vector<double> xaxis = splot::linspace(0, length, 5000);
-	vector<double> yaxis = splot::zeros(xaxis.size());
-	for (int i = 0; i < xaxis.size(); i++) {
-		double position = (i / (double)xaxis.size()) * length;
-		int valueIndex = (int)(position / delta);
-		yaxis[i] = data[valueIndex];
-	}
-	splot::export_csv("C:/users/youssef/desktop/mom_zmn.csv", matrix);
-	splot::export_csv("C:/users/youssef/desktop/mom_zmn_inverse.csv", zmn_inverse);
-	splot::export_csv("C:/users/youssef/desktop/mom_data.csv", xaxis, yaxis);
-	splot::plot(xaxis, yaxis, splot::PlotMode::Line);
-	splot::xlim(-0.2, 1.2);
 	splot::update(true);
 
 }

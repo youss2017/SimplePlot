@@ -52,7 +52,7 @@ namespace splot {
 	void ylim(double ymin, double ymax);
 	void title(const std::string& name);
 
-	void line_color(float r, float g, float b);
+	void color(float r, float g, float b);
 
 	void update(bool presist);
 

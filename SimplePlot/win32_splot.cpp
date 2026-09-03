@@ -1,7 +1,12 @@
+﻿#define _CRT_SECURE_NO_WARNINGS
 #include "splot.hpp"
 #include "win32_def.hpp"
 #include <Objbase.h>
 #include <algorithm>
+#include <iomanip>
+#include <ctime>
+#include <sstream>
+#include <chrono>
 
 using namespace splot;
 
@@ -89,25 +94,13 @@ figure_s* splot::create_figure(const std::string& title, size_t width, size_t he
 	// TODO: Make the shaders as constant string in c++ header file to avoid file loading issues
 	fig->PlotProgramId = splot::internal::glsl_load_program(splot::internal::read_all_text("plotvs_shader.glsl").value(), splot::internal::read_all_text("plotfs_shader.glsl").value());
 	fig->FigureProgramId = splot::internal::glsl_load_program(splot::internal::read_all_text("figvs_shader.glsl").value(), splot::internal::read_all_text("figfs_shader.glsl").value());
-
-	//GLuint figVaoId, figVboId;
-	//glGenVertexArrays(1, &figVaoId);
-	//glGenBuffers(1, &figVboId);
-	//glBindVertexArray(figVaoId);
-	//glBindBuffer(GL_ARRAY_BUFFER, figVboId);
-	//glEnableVertexAttribArray(0);
-	//glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void*)0);
-	//glEnableVertexAttribArray(1);
-	//glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 4, (void*)(sizeof(float) * 2));
-	//glBindVertexArray(0);
-	//
-	//fig->figureVaoId = figVaoId;
-
-	glEnable(GL_MULTISAMPLE);
+	fig->TextProgramId = splot::internal::glsl_load_program(splot::internal::read_all_text("text_vs.glsl").value(), splot::internal::read_all_text("text_fs.glsl").value());
 
 	g_CurrentFigure = fig;
 
 	AllFigures.push_back(fig);
+
+	fig->fontMap = splot::internal::load_font("C:\\Windows\\Fonts\\arial.ttf");
 
 	return fig;
 }
@@ -131,6 +124,9 @@ void splot::set_current_figure(figure_s* figure)
 void splot::subplot(int rows, int columns, int index)
 {
 	// (TODO): Add error checking
+	if (!g_CurrentFigure) {
+		splot::create_figure("Untitled figure", 800, 600);
+	}
 	g_CurrentFigure->subplot_rows = max(rows, 1);
 	g_CurrentFigure->subplot_column = max(columns, 1);
 	g_CurrentFigure->subplot_index = index;
@@ -191,12 +187,25 @@ void splot::polarplot(const vector<double>& angle, const vector<double>& radius,
 	}
 }
 
+void splot::title(const std::string& name)
+{
+	if (!g_CurrentFigure || g_CurrentFigure->curves.size() == 0)
+		return;
+	(--g_CurrentFigure->curves.end())->curveTitle = name;
+}
+
 void splot::xlabel(const std::string& name)
 {
+	if (!g_CurrentFigure || g_CurrentFigure->curves.size() == 0)
+		return;
+	(--g_CurrentFigure->curves.end())->xLabel = name;
 }
 
 void splot::ylabel(const std::string& name)
 {
+	if (!g_CurrentFigure || g_CurrentFigure->curves.size() == 0)
+		return;
+	(--g_CurrentFigure->curves.end())->yLabel = name;
 }
 
 void splot::xlim(double xmin, double xmax)
@@ -217,22 +226,56 @@ void splot::ylim(double ymin, double ymax)
 	}
 }
 
-void splot::title(const std::string& name)
+void splot::color(float r, float g, float b)
 {
-}
-
-void splot::line_color(float r, float g, float b)
-{
+	if (!g_CurrentFigure || g_CurrentFigure->curves.size() == 0)
+		return;
+	auto& rgb = (--g_CurrentFigure->curves.end())->rgb;
+	rgb[0] = r;
+	rgb[1] = g;
+	rgb[2] = b;
 }
 
 void splot::update(bool presist)
 {
+	if (!g_CurrentFigure)
+		return;
 	MSG msg;
-	while (GetMessageA(&msg, nullptr, 0, 0)) {
+	while (GetMessageA(&msg, nullptr, 0, 0) &&
+		presist &&
+		IsWindowVisible(g_CurrentFigure->hWnd)) {
 		TranslateMessage(&msg);
 		DispatchMessageA(&msg);
 		win32_render();
 	}
+}
+
+std::string getCurrentDateTime() {
+	// Get current time
+	std::time_t now = std::time(nullptr);
+	std::tm* localTime = std::localtime(&now);
+
+	// Create a string stream to format the date and time
+	std::ostringstream dateTimeStream;
+
+	// Format date and time
+	dateTimeStream << (localTime->tm_mon + 1) << '/'
+		<< localTime->tm_mday << '/'
+		<< (localTime->tm_year + 1900) << ' ';
+
+	// Format hours
+	int hour = localTime->tm_hour;
+	std::string period = (hour >= 12) ? "PM" : "AM";
+	if (hour > 12) hour -= 12;
+	if (hour == 0) hour = 12;
+
+	// Add hours, minutes, seconds
+	dateTimeStream << hour << ':'
+		<< std::setw(2) << std::setfill('0') << localTime->tm_min << ':'
+		<< std::setw(2) << std::setfill('0') << localTime->tm_sec << ' '
+		<< period;
+
+	return dateTimeStream.str();
 }
 
 void win32_render()
@@ -250,8 +293,10 @@ void win32_render()
 
 		GLint curveTextureId = glGetUniformLocation(figure->FigureProgramId, "CurveTexture");
 
-		srand(0xea);
 		for (auto& curve : figure->curves) {
+			// We have to re-use the program because the render_text api uses its own program
+			glUseProgram(figure->PlotProgramId);
+
 			//const auto& xv = curve.x_values;
 			//const auto& yv = curve.y_values;
 			const auto x_range = curve.x_range;
@@ -261,12 +306,24 @@ void win32_render()
 			curve.verticesData->bind();
 			glClearColor(.89f, .89f, .89f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT);
-			glLineWidth(5.0f);
-			glPointSize(5.0f);
-			glUniform3f(lineColorId, 0.12f, 0.2f, 0.9f);
+			glLineWidth(4.0f);
+			glPointSize(4.0f);
+			glUniform3f(lineColorId, curve.rgb[0], curve.rgb[1], curve.rgb[2]);
 			glUniform2f(x_rangeId, (float)curve.x_range.first, (float)curve.x_range.second);
 			glUniform2f(y_rangeId, (float)curve.y_range.first, (float)curve.y_range.second);
 			glDrawArrays(curve.plotMode == PlotMode::Line ? GL_LINE_STRIP : GL_POINTS, 0, (GLsizei)curve.pointCount);
+
+			if (curve.curveTitle.empty())
+				continue;
+
+			float rgb[3] = { 0.2, 0.3, 0.03 };
+
+			auto fboWidth = curve.renderTarget->width;
+			auto fboHeight = curve.renderTarget->height;
+			int resolution[2] = { fboWidth, fboHeight };
+
+			splot::internal::render_text(figure->TextProgramId, g_CurrentFigure->fontMap, curve.curveTitle.c_str(), fboWidth * 0.5f, fboHeight - 48.0f, 0.75f, resolution, rgb, true);
+			splot::internal::render_text(figure->TextProgramId, g_CurrentFigure->fontMap, curve.xLabel.c_str(), fboWidth * 0.5f, 48.0f * 0.5f, 0.5f, resolution, rgb, true);
 		}
 		internal::gl_buffer::unbind();
 		internal::fbo_info::unbind();
@@ -329,7 +386,7 @@ void compute_curve_placement(figure_s* figure)
 	}
 
 	vector<v2> vertices;
-
+	int curveCounter = 0;
 	for (int c = 0; c < figure->subplot_column; c++) {
 		for (int r = figure->subplot_rows - 1; r >= 0; r--) {
 			if (c * r >= figure->curves.size()) {
@@ -357,6 +414,26 @@ void compute_curve_placement(figure_s* figure)
 				transformed_quad[i].y += origin_position.y;
 				vertices.push_back(transformed_quad[i]);
 			}
+
+			// Update size of curve framebuffer
+			RECT clientArea;
+			GetClientRect(figure->hWnd, &clientArea);
+			const float clientWidth = clientArea.right;
+			const float clientHeight = clientArea.bottom;
+
+			const float startX = (transformed_quad[0].x * clientWidth);
+			const float startY = (transformed_quad[0].y * clientHeight);
+			const float endX = (transformed_quad[2].x * clientWidth);
+			const float endY = (transformed_quad[2].y * clientHeight);
+
+			int fboWidth = endX - startX;
+			int fboHeight = endY - startY;
+
+			auto& curveRT = figure->curves[curveCounter].renderTarget;
+			if (curveRT->width != fboWidth || curveRT->height != fboHeight) {
+				figure->curves[curveCounter].renderTarget = splot::internal::fbo_info::gl_create_framebuffer(fboWidth, fboHeight);
+			}
+			curveCounter++;
 		}
 	}
 

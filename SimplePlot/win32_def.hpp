@@ -16,16 +16,22 @@ namespace splot {
 
 		GLuint PlotProgramId = 0;
 		GLuint FigureProgramId = 0;
+		GLuint TextProgramId = 0;
+		splot::internal::font_map fontMap;
 
 		int subplot_rows = 1;
 		int subplot_column = 1;
 		int subplot_index = 0;
 
 		struct curve_data {
+			std::string curveTitle;
+			std::string xLabel;
+			std::string yLabel;
 			std::vector<double> x_values;
 			std::vector<double> y_values;
 			size_t pointCount = 0;
 			int subplot_index = 0;
+			float rgb[3] = { 0.12f, 0.2f, 0.9f };
 
 			pair<double, double> x_range;
 			pair<double, double> y_range;

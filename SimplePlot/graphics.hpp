@@ -4,6 +4,8 @@
 #include <vector>
 #include <optional>
 #include <memory>
+#include <map>
+
 namespace splot {
 
 	namespace internal {
@@ -35,11 +37,12 @@ namespace splot {
 				glDeleteBuffers(1, &vboId);
 			}
 
-			void write(const void* pData, size_t length) {
+			void write(const void* pData, size_t length, bool unbindFlag = true) {
 				glBindVertexArray(vaoId);
 				glBindBuffer(GL_ARRAY_BUFFER, vboId);
 				glBufferData(GL_ARRAY_BUFFER, length, pData, GL_DYNAMIC_DRAW);
-				glBindVertexArray(0);
+				if (unbindFlag)
+					unbind();
 			}
 
 			void bind() {
@@ -56,7 +59,7 @@ namespace splot {
 				glEnableVertexAttribArray(attribPointer);
 				glVertexAttribPointer(attribPointer, vecLength, GL_FLOAT, GL_FALSE, stride, (void*)(size_t)offset);
 				offset += vecLength * sizeof(float);
-				glBindVertexArray(0);
+				unbind();
 			}
 
 		public:
@@ -97,11 +100,21 @@ namespace splot {
 		GLuint glsl_load_program(const string& vsCode, const string& fsCode);
 
 		shared_ptr<gl_buffer> glsl_load_points_into_vao_buffer(const vector<double>& x, const vector<double>& y,
-											pair<double, double> x_range, pair<double, double> y_range);
+			pair<double, double> x_range, pair<double, double> y_range);
 
 		optional<string> read_all_text(const string& path);
 
-		void font_tests();
+		struct character {
+			unsigned int TextureID;  // ID handle of the glyph texture
+			int  Size[2];       // Size of glyph
+			int   Bearing[2];    // Offset from baseline to left/top of glyph
+			int Advance;    // Offset to advance to next glyph
+		};
+
+		using font_map = std::map<char, character>;
+
+		font_map load_font(const string& path);
+		void render_text(GLuint shaderProgram, const font_map& map, const string& text, float x, float y, float scale, int resolution[2], float rgb[3], bool offsetToTrueCenter = false);
 
 	}
 
