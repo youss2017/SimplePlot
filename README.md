@@ -16,4 +16,4 @@ Supports matrix inversion.
 <h6>Sample Code:</h6>
 <img src="code.png" />
 <hr/>
-<img src="image.webp" />
+<img src="demo.png" />
