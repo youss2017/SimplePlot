@@ -14,6 +14,6 @@ Supports matrix inversion.
 
 <h3>Demo:</h3>
 <h6>Sample Code:</h6>
-<img src="code.png" />
+<img src="code - Copy.png" />
 <hr/>
 <img src="demo.png" />
