@@ -66,14 +66,17 @@ int main() {
 	// 1 cycle of x(t) or Fs/fc
 	vector<double> xt;
 	vector<double> yt;
-	const double Fs = 2000;
+	const double Fs = 8000;
 	const double fc = 440;
 	const int zeroCount = 200;
 
-	for (int n = 0; n < Fs / fc; n++) {
+	for (int n = 0; n < 4.0 * Fs / fc; n++) {
 		xt.push_back(n);
 		yt.push_back(47.0 * cos(2.0 * 3.14 * fc * n / Fs));
 	}
+
+	auto xt2 = xt;
+	auto yt2 = yt;
 
 	for (int i = 0; i < zeroCount; i++) {
 		xt.push_back(*(--xt.end()) + 1);
@@ -95,11 +98,13 @@ int main() {
 	}
 
 	splot::subplot(2, 2, 1);
-	splot::plot(xt, yt, splot::PlotMode::Line);
+	splot::plot(xt2, yt2, splot::PlotMode::Line);
 	splot::ylabel("Amplitude");
 	splot::xlabel("Sample");
 	splot::title("x(t) = 47cos(2pi200t)");
 	splot::color(1.0, 0.0, 0.0);
+	splot::grid(true, 0, 0, 0);
+	
 	splot::subplot(2, 2, 2);
 	splot::plot(xt, dftMag, splot::PlotMode::Line);
 	splot::ylabel("Amplitude");
@@ -108,10 +113,11 @@ int main() {
 	splot::color(0.55, 0.22, 0.35);
 	auto maggg = splot::maxv(dftMag);
 	splot::ylim(-0.5, maggg + 0.8);
+	splot::grid(true, 0, 0, 0);
 
 	vector<double> v, current;
-	for (int i = 0; i < 32; i++) {
-		double volt = .8 * ((i+1) / 32.0);
+	for (int i = 0; i < 256; i++) {
+		double volt = .8 * ((i + 1) / 256.0);
 		double cur = 25e-9 * exp(volt / 25.6e-3);
 		v.push_back(volt);
 		current.push_back(cur);
@@ -119,22 +125,25 @@ int main() {
 
 	splot::subplot(2, 2, 3);
 	splot::plot(v, current, splot::PlotMode::Line);
+	splot::color(0.2, 0.55, 0.1);
 	splot::xlabel("Voltage (V)");
 	splot::ylabel("Current (A)");
 	splot::title("Diode I-V Curve");
+	splot::grid(true, 0, 0, 0);
 
 	vector<double> a, b;
 	for (int i = 0; i < 300; i++) {
 		double t = ((i + 1) / 300.0);
 		a.push_back(t);
-		b.push_back(cos(2.0 * 3.14 * 6 * t));
+		b.push_back(i < 150 ? 30 : (i - 150 + 30));
 	}
 
 	splot::subplot(2, 2, 4);
-	splot::plot(a, b, splot::PlotMode::Point);
+	splot::plot(a, b, splot::PlotMode::Line);
 	splot::xlabel("t");
-	splot::ylabel("g(t)");
-	splot::title("Cosine Curve");
+	splot::ylabel("y(t)");
+	splot::title("y(t)=t*u(t) Curve");
+	splot::grid(true, 0, 0, 0);
 
 	splot::update(true);
 

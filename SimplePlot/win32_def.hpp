@@ -23,6 +23,11 @@ namespace splot {
 		int subplot_column = 1;
 		int subplot_index = 0;
 
+		struct {
+			int width = 0;
+			int height = 0;
+		} framebuffer_dimension;
+
 		struct curve_data {
 			std::string curveTitle;
 			std::string xLabel;
@@ -38,11 +43,29 @@ namespace splot {
 
 			shared_ptr<internal::gl_buffer> verticesData;
 			shared_ptr<internal::fbo_info> renderTarget;
-			
+
 			PlotMode plotMode = PlotMode::Line;
+
+			struct {
+				bool state = false;
+				float r = 0.0f;
+				float g = 0.0f;
+				float b = 0.0f;
+				shared_ptr<internal::gl_buffer> gridVertices;
+			} grid_settings;
+
+			struct {
+				float x;
+				float y;
+				float width;
+				float height;
+				float padding;
+				float edgePadding;
+			} curve_dimension;
+
 		};
 		// Contains data for plotting curves (through quads) on the window framebuffer
-		shared_ptr<internal::gl_buffer> figureCurve; 
+		shared_ptr<internal::gl_buffer> figureCurve;
 		vector<curve_data> curves;
 	};
 }

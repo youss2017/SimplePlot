@@ -51,6 +51,7 @@ namespace splot {
 	void xlim(double xmin, double xmax);
 	void ylim(double ymin, double ymax);
 	void title(const std::string& name);
+	void grid(bool state, float r, float g, float b);
 
 	void color(float r, float g, float b);
 

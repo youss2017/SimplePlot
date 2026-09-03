@@ -70,8 +70,7 @@ GLuint splot::internal::glsl_load_program(const string& vsCode, const string& fs
 
 
 
-shared_ptr<splot::internal::gl_buffer> splot::internal::glsl_load_points_into_vao_buffer(const vector<double>& x, const vector<double>& y,
-	pair<double, double> x_range, pair<double, double> y_range)
+shared_ptr<splot::internal::gl_buffer> splot::internal::glsl_load_points_into_vao_buffer(const vector<double>& x, const vector<double>& y)
 {
 	if (x.size() != y.size() || x.size() == 0) {
 		throw exception("vector(x) and vector(y) must have same point count and must be greater than 0");
@@ -245,6 +244,7 @@ splot::internal::font_map splot::internal::load_font(const std::string& path)
 
 void splot::internal::render_text(GLuint shaderProgram, const font_map& map, const string& text, float x, float y, float scale, int resolution[2], float rgb[3], bool offsetToTrueCenter)
 {
+	if (text.empty()) return;
 	glUseProgram(shaderProgram);
 	glActiveTexture(GL_TEXTURE0);
 	glEnable(GL_BLEND);
@@ -282,6 +282,7 @@ void splot::internal::render_text(GLuint shaderProgram, const font_map& map, con
 		else if (letter == ' ') {
 			// now advance cursors for next glyph (note that advance is number of 1/64 pixels)
 			x += (ch.Advance >> 6) * scale; // bitshift by 6 to get value in pixels (2^6 = 64)
+			continue;
 		}
 
 		const float xpos = x + ch.Bearing[0] * scale;

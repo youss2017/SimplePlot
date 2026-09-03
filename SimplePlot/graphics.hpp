@@ -99,8 +99,7 @@ namespace splot {
 
 		GLuint glsl_load_program(const string& vsCode, const string& fsCode);
 
-		shared_ptr<gl_buffer> glsl_load_points_into_vao_buffer(const vector<double>& x, const vector<double>& y,
-			pair<double, double> x_range, pair<double, double> y_range);
+		shared_ptr<gl_buffer> glsl_load_points_into_vao_buffer(const vector<double>& x, const vector<double>& y);
 
 		optional<string> read_all_text(const string& path);
 

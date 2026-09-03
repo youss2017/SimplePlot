@@ -150,7 +150,7 @@ void splot::plot(const vector<double>& x, const vector<double>& y, PlotMode mode
 		curve.x_range = { x_min, x_max };
 		curve.y_range = { y_min, y_max };
 		curve.pointCount = x.size();
-		curve.verticesData = splot::internal::glsl_load_points_into_vao_buffer(x, y, curve.x_range, curve.y_range);
+		curve.verticesData = splot::internal::glsl_load_points_into_vao_buffer(x, y);
 		curve.renderTarget = splot::internal::fbo_info::gl_create_framebuffer(800, 600);
 		curve.plotMode = mode;
 		g_CurrentFigure->curves.push_back(curve);
@@ -192,6 +192,50 @@ void splot::title(const std::string& name)
 	if (!g_CurrentFigure || g_CurrentFigure->curves.size() == 0)
 		return;
 	(--g_CurrentFigure->curves.end())->curveTitle = name;
+}
+
+void splot::grid(bool state, float r, float g, float b)
+{
+	if (!g_CurrentFigure || g_CurrentFigure->curves.size() == 0)
+		return;
+	auto& figure = *(--g_CurrentFigure->curves.end());
+	figure.grid_settings.state = state;
+	figure.grid_settings.r = r;
+	figure.grid_settings.g = g;
+	figure.grid_settings.b = b;
+
+	struct vertex2 {
+		float x, y;
+	};
+
+	const int numOfCol = 10;
+	const int numOfRow = 10;
+	vector<vertex2> grid_lines;
+	// columns
+	for (int x = -numOfCol / 2; x <= numOfCol / 2; x++) {
+		float xx = numOfRow / 2;
+
+		xx = x / xx;
+
+		grid_lines.push_back({ xx, -1 });
+		grid_lines.push_back({ xx, +1 });
+	}
+	// rows
+	for (int y = -numOfRow / 2; y <= numOfRow / 2; y++) {
+		float yy = numOfRow / 2;
+
+		yy = y / yy;
+
+		grid_lines.push_back({ -1, yy });
+		grid_lines.push_back({ +1, yy });
+	}
+
+	auto grid = splot::internal::gl_buffer::create_buffer();;
+	grid->enable_attrib_pointer_f32(0, 2, sizeof(vertex2));
+
+	grid->write(grid_lines.data(), grid_lines.size() * sizeof(vertex2));
+
+	figure.grid_settings.gridVertices = grid;
 }
 
 void splot::xlabel(const std::string& name)
@@ -290,6 +334,7 @@ void win32_render()
 		GLint lineColorId = glGetUniformLocation(figure->PlotProgramId, "LineColor");
 		GLint x_rangeId = glGetUniformLocation(figure->PlotProgramId, "x_range");
 		GLint y_rangeId = glGetUniformLocation(figure->PlotProgramId, "y_range");
+		GLint u_normalize_rangeId = glGetUniformLocation(figure->PlotProgramId, "u_normalize_range");
 
 		GLint curveTextureId = glGetUniformLocation(figure->FigureProgramId, "CurveTexture");
 
@@ -299,8 +344,10 @@ void win32_render()
 
 			//const auto& xv = curve.x_values;
 			//const auto& yv = curve.y_values;
-			const auto x_range = curve.x_range;
-			const auto y_range = curve.y_range;
+			double ydelta = curve.y_range.second - curve.y_range.first;
+
+			const pair<double, double> x_range = { curve.x_range.first * 1.0f, curve.x_range.second * 1.0f };
+			const pair<double, double> y_range = { -ydelta * 0.5f, ydelta};
 
 			curve.renderTarget->bind();
 			curve.verticesData->bind();
@@ -309,12 +356,19 @@ void win32_render()
 			glLineWidth(4.0f);
 			glPointSize(4.0f);
 			glUniform3f(lineColorId, curve.rgb[0], curve.rgb[1], curve.rgb[2]);
-			glUniform2f(x_rangeId, (float)curve.x_range.first, (float)curve.x_range.second);
-			glUniform2f(y_rangeId, (float)curve.y_range.first, (float)curve.y_range.second);
+			glUniform2f(x_rangeId, (float)x_range.first, (float)x_range.second);
+			glUniform2f(y_rangeId, (float)y_range.first, (float)y_range.second);
+			glUniform1i(u_normalize_rangeId, 1);
 			glDrawArrays(curve.plotMode == PlotMode::Line ? GL_LINE_STRIP : GL_POINTS, 0, (GLsizei)curve.pointCount);
 
-			if (curve.curveTitle.empty())
-				continue;
+			if (curve.grid_settings.state) {
+				curve.grid_settings.gridVertices->bind();
+				glLineWidth(1.0f);
+				glPointSize(1.0f);
+				glUniform1i(u_normalize_rangeId, 0);
+				glUniform3f(lineColorId, curve.grid_settings.r, curve.grid_settings.g, curve.grid_settings.b);
+				glDrawArrays(GL_LINES, 0, 88);
+			}
 
 			float rgb[3] = { 0.2, 0.3, 0.03 };
 
@@ -322,27 +376,47 @@ void win32_render()
 			auto fboHeight = curve.renderTarget->height;
 			int resolution[2] = { fboWidth, fboHeight };
 
-			splot::internal::render_text(figure->TextProgramId, g_CurrentFigure->fontMap, curve.curveTitle.c_str(), fboWidth * 0.5f, fboHeight - 48.0f, 0.75f, resolution, rgb, true);
-			splot::internal::render_text(figure->TextProgramId, g_CurrentFigure->fontMap, curve.xLabel.c_str(), fboWidth * 0.5f, 48.0f * 0.5f, 0.5f, resolution, rgb, true);
+		//	splot::internal::render_text(figure->TextProgramId, g_CurrentFigure->fontMap, curve.curveTitle.c_str(), fboWidth * 0.5f, fboHeight - 48.0f, 0.75f, resolution, rgb, true);
+		//	splot::internal::render_text(figure->TextProgramId, g_CurrentFigure->fontMap, curve.xLabel.c_str(), fboWidth * 0.5f, 48.0f * 0.5f, 0.5f, resolution, rgb, true);
 		}
 		internal::gl_buffer::unbind();
 		internal::fbo_info::unbind();
 
 		compute_curve_placement(figure);
-		figure->figureCurve->bind();
-		glUseProgram(figure->FigureProgramId);
-
 		glViewport(0, 0, rect.right, rect.bottom);
 		glClearColor(0.57f, 0.37f, 0.33f, 0);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		size_t curveI = 0;
 		for (auto& curve : figure->curves) {
+			figure->figureCurve->bind();
+			glUseProgram(figure->FigureProgramId);
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, curve.renderTarget->textureId);
 			glUniform1i(curveTextureId, 0);
 			glDrawArrays(GL_TRIANGLES, curveI * 6, 6);
 			curveI++;
+			float rgb[3] = { 0.0, 0.0, 0.0 };
+
+			int fboWidth = figure->framebuffer_dimension.width;
+			int fboHeight = figure->framebuffer_dimension.height;
+			float cornerX = curve.curve_dimension.x;
+			float cornerY = curve.curve_dimension.y;
+			float curveWidth = curve.curve_dimension.width;
+			float curveHeight = curve.curve_dimension.height;
+			float edgePadding = curve.curve_dimension.edgePadding;
+			float padding = curve.curve_dimension.padding;
+			int res[2] = { fboWidth, fboHeight };
+
+			float titleX = (0.5f * curveWidth) + cornerX;
+			float titleY = (cornerY + curveHeight - 32);
+
+			float labelXX = (0.5f * curveWidth) + cornerX;
+			float labelXY = (cornerY - 24);
+
+			splot::internal::render_text(figure->TextProgramId, g_CurrentFigure->fontMap, curve.curveTitle.c_str(), titleX, titleY, 0.6f, res, rgb, true);
+			splot::internal::render_text(figure->TextProgramId, g_CurrentFigure->fontMap, curve.xLabel.c_str(), labelXX, labelXY, 0.4f, res, rgb, true);
+
 		}
 
 		glBindVertexArray(0);
@@ -362,8 +436,6 @@ void compute_curve_placement(figure_s* figure)
 	const float edgePadding = 0.05f;
 	float columnCount = (float)figure->subplot_column;
 	float rowCount = (float)figure->subplot_rows;
-	float curveWidth = (1.0f - (padding + edgePadding * (figure->subplot_column - 1))) / columnCount;
-	float curveHeight = (1.0f - (padding + edgePadding * (figure->subplot_rows - 1))) / rowCount;
 
 	struct v2 {
 		float x, y;
@@ -400,14 +472,12 @@ void compute_curve_placement(figure_s* figure)
 
 			const float columnGap = padding / columnCount;
 			const float rowGap = padding / rowCount;
+			float curveWidth = (1.0f - (padding + edgePadding * (columnCount - 1))) / columnCount;
+			float curveHeight = (1.0f - (padding + edgePadding * (rowCount - 1))) / rowCount;
+
 			v2 corner_position = {
 				(edgePadding)+(columnGap * c) + (curveWidth * c),
 				(edgePadding)+(rowGap * r) + (curveHeight * r),
-			};
-
-			v2 origin_position = {
-				corner_position.x ,
-				corner_position.y ,
 			};
 
 			v2 transformed_quad[6] = {};
@@ -416,11 +486,11 @@ void compute_curve_placement(figure_s* figure)
 			for (size_t i = 0; i < 6; i++) {
 				transformed_quad[i].x *= curveWidth;
 				transformed_quad[i].y *= curveHeight;
-				transformed_quad[i].x += origin_position.x;
-				transformed_quad[i].y += origin_position.y;
+				transformed_quad[i].x += corner_position.x;
+				transformed_quad[i].y += corner_position.y;
 				vertices.push_back(transformed_quad[i]);
 			}
-
+			
 			// Update size of curve framebuffer
 			RECT clientArea;
 			GetClientRect(figure->hWnd, &clientArea);
@@ -435,6 +505,16 @@ void compute_curve_placement(figure_s* figure)
 			int fboWidth = endX - startX;
 			int fboHeight = endY - startY;
 
+			figure->curves[curveCounter].curve_dimension.x = startX;// transformed_quad[0].x;
+			figure->curves[curveCounter].curve_dimension.y = startY;// transformed_quad[0].y;
+			figure->curves[curveCounter].curve_dimension.width = fboWidth;// curveWidth;
+			figure->curves[curveCounter].curve_dimension.height = fboHeight;// curveHeight;
+			figure->curves[curveCounter].curve_dimension.padding = padding;
+			figure->curves[curveCounter].curve_dimension.edgePadding = edgePadding;
+
+			figure->framebuffer_dimension.width = clientWidth;
+			figure->framebuffer_dimension.height = clientHeight;
+
 			auto& curveRT = figure->curves[curveCounter].renderTarget;
 			if (curveRT->width != fboWidth || curveRT->height != fboHeight) {
 				figure->curves[curveCounter].renderTarget = splot::internal::fbo_info::gl_create_framebuffer(fboWidth, fboHeight);
@@ -446,3 +526,4 @@ void compute_curve_placement(figure_s* figure)
 	figure->figureCurve->write(vertices.data(), vertices.size() * sizeof(v2));
 
 }
+
